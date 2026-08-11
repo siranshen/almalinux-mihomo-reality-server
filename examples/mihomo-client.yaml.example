@@ -62,6 +62,10 @@ rule-providers:
     proxy: PROXY
 
 rules:
+  # Keep administration and diagnostics to the proxy endpoint outside TUN.
+  # Use the endpoint's current public IPv4 even when `server` is a hostname.
+  - IP-CIDR,__ENDPOINT_IPV4__/32,DIRECT,no-resolve
+
   # Domain classification must precede target-IP classification.
   - DOMAIN-SUFFIX,lan,DIRECT
   - DOMAIN-SUFFIX,local,DIRECT

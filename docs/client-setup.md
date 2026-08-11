@@ -17,10 +17,14 @@ In Clash Verge Rev:
 3. Select the VPS node in the `PROXY` group.
 4. Enable Service Mode and TUN for system-wide capture.
 
-The example sends maintained Chinese domain and literal-IP destinations direct,
-while foreign and unknown destinations use the VPS. Domain classification runs
-before IP classification. `no-resolve` on target-IP rules avoids local DNS
-lookups solely to classify unknown foreign names.
+The first rule sends the VPS's public IPv4 directly, keeping SSH, diagnostics,
+and the endpoint itself outside TUN proxy routing. Set `__ENDPOINT_IPV4__` even
+when the proxy's `server` field uses a hostname.
+
+The remaining example sends maintained Chinese domain and literal-IP
+destinations direct, while foreign and unknown destinations use the VPS. Domain
+classification runs before IP classification. `no-resolve` on target-IP rules
+avoids local DNS lookups solely to classify unknown foreign names.
 
 Provider rule downloads use `proxy: PROXY`, avoiding dependence on direct
 GitHub reachability from the client network.
