@@ -1,0 +1,48 @@
+# Replace every marked value before deployment.
+# Keep the completed file outside Git with root:mihomo ownership and mode 0640.
+mode: rule
+log-level: warning
+# This reference deployment is IPv4-only. Blocking outbound IPv6 also blocks
+# access to any globally addressed infrastructure on the VPS's private network.
+ipv6: false
+allow-lan: false
+
+listeners:
+  - name: reality-in
+    type: vless
+    listen: 0.0.0.0
+    port: 443
+    users:
+      - username: personal
+        uuid: __VLESS_UUID__
+        flow: xtls-rprx-vision
+    reality-config:
+      dest: __REALITY_SERVER_NAME__:443
+      private-key: __REALITY_PRIVATE_KEY__
+      short-id:
+        - "__REALITY_SHORT_ID__"
+      server-names:
+        - __REALITY_SERVER_NAME__
+
+# Prevent authenticated proxy clients from reaching loopback, link-local,
+# cloud metadata, RFC1918/VPS private networks, documentation ranges, multicast,
+# or other reserved destinations. Do not add no-resolve: hostnames resolving to
+# prohibited addresses must also be rejected.
+rules:
+  - IP-CIDR,0.0.0.0/8,REJECT
+  - IP-CIDR,10.0.0.0/8,REJECT
+  - IP-CIDR,100.64.0.0/10,REJECT
+  - IP-CIDR,127.0.0.0/8,REJECT
+  - IP-CIDR,169.254.0.0/16,REJECT
+  - IP-CIDR,172.16.0.0/12,REJECT
+  - IP-CIDR,192.0.0.0/24,REJECT
+  - IP-CIDR,192.0.2.0/24,REJECT
+  - IP-CIDR,192.168.0.0/16,REJECT
+  - IP-CIDR,198.18.0.0/15,REJECT
+  - IP-CIDR,198.51.100.0/24,REJECT
+  - IP-CIDR,203.0.113.0/24,REJECT
+  - IP-CIDR,224.0.0.0/4,REJECT
+  - IP-CIDR,240.0.0.0/4,REJECT
+  # Reject all IPv6 in this A-record-only reference design.
+  - IP-CIDR6,::/0,REJECT
+  - MATCH,DIRECT

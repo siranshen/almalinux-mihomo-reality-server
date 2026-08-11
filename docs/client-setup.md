@@ -1,0 +1,69 @@
+# Client setup and routing
+
+## Mihomo / Clash Verge Rev
+
+Copy `examples/mihomo-client.yaml.example` outside the repository and replace
+all placeholders. The endpoint may be a DNS-only hostname or the VPS public
+IPv4. Validate before import:
+
+```sh
+mihomo -t -d /tmp/mihomo-client-test -f /path/to/mihomo-client.yaml
+```
+
+In Clash Verge Rev:
+
+1. Import the completed YAML as a local profile.
+2. Select Rule mode.
+3. Select the VPS node in the `PROXY` group.
+4. Enable Service Mode and TUN for system-wide capture.
+
+The example sends maintained Chinese domain and literal-IP destinations direct,
+while foreign and unknown destinations use the VPS. Domain classification runs
+before IP classification. `no-resolve` on target-IP rules avoids local DNS
+lookups solely to classify unknown foreign names.
+
+Provider rule downloads use `proxy: PROXY`, avoiding dependence on direct
+GitHub reachability from the client network.
+
+## DNS behavior
+
+The example uses:
+
+- system DNS to bootstrap the proxy endpoint;
+- system DNS for intentionally direct destinations;
+- Cloudflare DoH through `PROXY` for other client-side resolution; and
+- Fake-IP to preserve domain names through TUN interception.
+
+The endpoint lookup necessarily happens before the proxy exists. It reveals the
+endpoint hostname, not the later proxy-routed browsing names. Local DNS for an
+intentionally direct destination is expected.
+
+The reference server rejects outbound IPv6, so the example client disables it.
+
+## Shadowrocket
+
+Copy `examples/shadowrocket-links.txt.example` outside Git and replace all
+placeholders. The completed URL installs the node only; routing rules remain a
+separate Shadowrocket configuration.
+
+A suitable order is:
+
+1. Explicit local, banking, and location-sensitive exceptions: `DIRECT`.
+2. A maintained Chinese domain set: `DIRECT`.
+3. A maintained Chinese IP set with `no-resolve`: `DIRECT`.
+4. Final rule: `PROXY`.
+
+Use Configuration mode for normal split routing. Proxy mode is useful for a
+controlled all-proxy test.
+
+## Verification
+
+Test from outside the VPS network:
+
+1. Confirm the client reports the VPS address on an IP-check site.
+2. Confirm a foreign destination matches `PROXY`.
+3. Confirm a known Chinese destination matches `DIRECT` where intended.
+4. In all-proxy mode, verify DNS tests do not show the client's local carrier
+   resolver for proxy-selected names.
+5. Confirm clients cannot reach private, link-local, or metadata addresses
+   through the server.

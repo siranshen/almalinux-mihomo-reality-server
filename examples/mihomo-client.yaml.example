@@ -1,0 +1,83 @@
+# Replace every marked value before importing into a Mihomo client.
+# The completed file contains a bearer credential and must not be committed.
+mixed-port: 7890
+mode: rule
+log-level: info
+ipv6: false
+
+dns:
+  enable: true
+  ipv6: false
+  enhanced-mode: fake-ip
+  fake-ip-filter:
+    - "*.lan"
+    - "*.local"
+  # Bootstrap is necessarily direct because the tunnel does not exist yet.
+  proxy-server-nameserver:
+    - system
+  direct-nameserver:
+    - system
+  nameserver:
+    - "https://1.1.1.1/dns-query#PROXY"
+
+proxies:
+  - name: VPS Reality
+    type: vless
+    server: __ENDPOINT_HOST_OR_IPV4__
+    port: 443
+    uuid: __VLESS_UUID__
+    network: tcp
+    udp: true
+    tls: true
+    servername: __REALITY_SERVER_NAME__
+    flow: xtls-rprx-vision
+    packet-encoding: xudp
+    client-fingerprint: chrome
+    reality-opts:
+      public-key: __REALITY_PUBLIC_KEY__
+      short-id: "__REALITY_SHORT_ID__"
+
+proxy-groups:
+  - name: PROXY
+    type: select
+    proxies:
+      - VPS Reality
+
+rule-providers:
+  cn-domain:
+    type: http
+    behavior: domain
+    format: mrs
+    url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/cn.mrs
+    path: ./ruleset/cn-domain.mrs
+    interval: 86400
+    proxy: PROXY
+  cn-ip:
+    type: http
+    behavior: ipcidr
+    format: mrs
+    url: https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geoip/cn.mrs
+    path: ./ruleset/cn-ip.mrs
+    interval: 86400
+    proxy: PROXY
+
+rules:
+  # Domain classification must precede target-IP classification.
+  - DOMAIN-SUFFIX,lan,DIRECT
+  - DOMAIN-SUFFIX,local,DIRECT
+  - RULE-SET,cn-domain,DIRECT
+
+  # no-resolve avoids local DNS solely to evaluate target-IP rules.
+  - IP-CIDR,0.0.0.0/8,DIRECT,no-resolve
+  - IP-CIDR,10.0.0.0/8,DIRECT,no-resolve
+  - IP-CIDR,100.64.0.0/10,DIRECT,no-resolve
+  - IP-CIDR,127.0.0.0/8,DIRECT,no-resolve
+  - IP-CIDR,169.254.0.0/16,DIRECT,no-resolve
+  - IP-CIDR,172.16.0.0/12,DIRECT,no-resolve
+  - IP-CIDR,192.168.0.0/16,DIRECT,no-resolve
+  - IP-CIDR6,::1/128,DIRECT,no-resolve
+  - IP-CIDR6,fc00::/7,DIRECT,no-resolve
+  - IP-CIDR6,fe80::/10,DIRECT,no-resolve
+  - RULE-SET,cn-ip,DIRECT,no-resolve
+
+  - MATCH,PROXY

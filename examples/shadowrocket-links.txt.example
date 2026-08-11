@@ -1,0 +1,4 @@
+Replace all placeholders, then import the URL into Shadowrocket.
+The completed URL contains the VLESS bearer credential; do not commit it.
+
+vless://__VLESS_UUID__@__ENDPOINT_HOST_OR_IPV4__:443?encryption=none&flow=xtls-rprx-vision&security=reality&sni=__REALITY_SERVER_NAME__&fp=chrome&pbk=__REALITY_PUBLIC_KEY__&sid=__REALITY_SHORT_ID__&type=tcp&headerType=none&packetEncoding=xudp#VPS%20Reality
