@@ -43,6 +43,8 @@ endpoint hostname, not the later proxy-routed browsing names. Local DNS for an
 intentionally direct destination is expected.
 
 The reference server rejects outbound IPv6, so the example client disables it.
+In Clash Verge Rev, also turn off **Settings → Clash Settings → IPv6** manually;
+the app can override the imported profile's `ipv6: false` setting.
 
 ## Shadowrocket
 
