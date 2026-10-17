@@ -281,6 +281,10 @@ If SELinux reports a denial, diagnose it rather than disabling SELinux; see
 > imported profile's `ipv6: false`, so editing the YAML alone is not enough.
 > This server does not support outbound IPv6.
 
+**Required for Chrome on macOS:** complete the
+[Chrome Los Angeles launcher setup](docs/chrome-macos.md) as part of client
+configuration, in addition to the proxy setup below.
+
 Copy `examples/mihomo-client.yaml.example` outside Git and replace its
 placeholders. The endpoint can be `proxy.example.com` or the VPS IPv4. Validate
 before importing:
@@ -317,6 +321,7 @@ systemctl show mihomo-server \
 - [Architecture and security](docs/architecture.md)
 - [Resource sizing](docs/resources.md)
 - [Client setup](docs/client-setup.md)
+- [Chrome timezone launcher on macOS](docs/chrome-macos.md)
 - [Operations and upgrades](docs/operations.md)
 - [Troubleshooting](docs/troubleshooting.md)
 - [Security policy](SECURITY.md)

@@ -19,6 +19,8 @@ In Clash Verge Rev:
 3. Select Rule mode.
 4. Select the VPS node in the `PROXY` group.
 5. Enable Service Mode and TUN for system-wide capture.
+6. For Chrome on macOS, complete the required
+   [Chrome timezone launcher setup](chrome-macos.md).
 
 The first rule sends the VPS's public IPv4 directly, keeping SSH, diagnostics,
 and the endpoint itself outside TUN proxy routing. Set `__ENDPOINT_IPV4__` even
@@ -31,6 +33,14 @@ avoids local DNS lookups solely to classify unknown foreign names.
 
 Provider rule downloads use `proxy: PROXY`, avoiding dependence on direct
 GitHub reachability from the client network.
+
+## Chrome on macOS
+
+**Required for macOS Chrome clients:** set up and use the
+[Chrome Los Angeles Dock launcher](chrome-macos.md). It starts normal Chrome
+with the Los Angeles timezone while leaving the system timezone unchanged.
+This is required in addition to the proxy setup above; it does not provide
+general WebRTC leak protection.
 
 ## DNS behavior
 
