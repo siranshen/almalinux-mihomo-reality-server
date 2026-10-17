@@ -276,6 +276,11 @@ If SELinux reports a denial, diagnose it rather than disabling SELinux; see
 
 ## 9. Configure clients
 
+> **Required for Clash Verge Rev:** manually turn off
+> **Settings → Clash Settings → IPv6** in the app. The app can override the
+> imported profile's `ipv6: false`, so editing the YAML alone is not enough.
+> This server does not support outbound IPv6.
+
 Copy `examples/mihomo-client.yaml.example` outside Git and replace its
 placeholders. The endpoint can be `proxy.example.com` or the VPS IPv4. Validate
 before importing:

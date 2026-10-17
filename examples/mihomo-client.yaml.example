@@ -66,6 +66,10 @@ rules:
   # Use the endpoint's current public IPv4 even when `server` is a hostname.
   - IP-CIDR,__ENDPOINT_IPV4__/32,DIRECT,no-resolve
 
+  # Keep this STUN hostname off the China-direct rule to avoid exposing the ISP IP.
+  # This exception is not a general WebRTC leak-prevention policy.
+  - DOMAIN,stun.voip.blackberry.com,PROXY
+
   # Domain classification must precede target-IP classification.
   - DOMAIN-SUFFIX,lan,DIRECT
   - DOMAIN-SUFFIX,local,DIRECT

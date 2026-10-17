@@ -13,9 +13,12 @@ mihomo -t -d /tmp/mihomo-client-test -f /path/to/mihomo-client.yaml
 In Clash Verge Rev:
 
 1. Import the completed YAML as a local profile.
-2. Select Rule mode.
-3. Select the VPS node in the `PROXY` group.
-4. Enable Service Mode and TUN for system-wide capture.
+2. **Required: manually turn off Settings → Clash Settings → IPv6 in the app.**
+   The app can override the profile's `ipv6: false`; editing the YAML alone is
+   not enough. This server does not support outbound IPv6.
+3. Select Rule mode.
+4. Select the VPS node in the `PROXY` group.
+5. Enable Service Mode and TUN for system-wide capture.
 
 The first rule sends the VPS's public IPv4 directly, keeping SSH, diagnostics,
 and the endpoint itself outside TUN proxy routing. Set `__ENDPOINT_IPV4__` even
