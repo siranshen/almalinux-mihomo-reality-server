@@ -26,6 +26,11 @@ The first rule sends the VPS's public IPv4 directly, keeping SSH, diagnostics,
 and the endpoint itself outside TUN proxy routing. Set `__ENDPOINT_IPV4__` even
 when the proxy's `server` field uses a hostname.
 
+Every client configuration must include `DOMAIN,pi.starlovin.tech,DIRECT`
+before rule sets and the final proxy rule. The Mihomo template places this
+exact-host exception first under `rules`; preserve it when generating profiles.
+Use Rule mode so this exception applies.
+
 The remaining example sends maintained Chinese domain and literal-IP
 destinations direct, while foreign and unknown destinations use the VPS. Domain
 classification runs before IP classification. `no-resolve` on target-IP rules
@@ -67,13 +72,18 @@ separate Shadowrocket configuration.
 
 A suitable order is:
 
-1. Explicit local, banking, and location-sensitive exceptions: `DIRECT`.
-2. A maintained Chinese domain set: `DIRECT`.
-3. A maintained Chinese IP set with `no-resolve`: `DIRECT`.
-4. Final rule: `PROXY`.
+1. Required exact-host exception: `DOMAIN,pi.starlovin.tech,DIRECT`.
+2. Explicit local, banking, and location-sensitive exceptions: `DIRECT`.
+3. A maintained Chinese domain set: `DIRECT`.
+4. A maintained Chinese IP set with `no-resolve`: `DIRECT`.
+5. Final rule: `PROXY`.
 
-Use Configuration mode for normal split routing. Proxy mode is useful for a
-controlled all-proxy test.
+Put the required exception at the top of the `[Rule]` section. Importing a node
+URL or QR code alone does not install these routing rules.
+
+Use Configuration mode for normal split routing and to keep `pi.starlovin.tech`
+direct. Proxy mode is useful only for a controlled all-proxy test; it bypasses
+this exception.
 
 ## Verification
 
