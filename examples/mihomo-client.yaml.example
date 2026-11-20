@@ -73,8 +73,8 @@ rules:
   # Keep administration and diagnostics to the VPS outside TUN.
   - IP-CIDR,__ENDPOINT_IPV4__/32,DIRECT,no-resolve
 
-  # Keep this STUN hostname off the China-direct rule to avoid exposing the ISP IP.
-  # This exception is not a general WebRTC leak-prevention policy.
+  # Keep this STUN hostname off the China-direct rule to avoid exposing the
+  # client's ISP address. This is not a general WebRTC leak-prevention policy.
   - DOMAIN,stun.voip.blackberry.com,PROXY
 
   # Domain classification must precede target-IP classification.
