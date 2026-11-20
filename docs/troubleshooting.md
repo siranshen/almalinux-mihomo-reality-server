@@ -161,6 +161,11 @@ curl -sI https://sub.example.com/<token>-clash | head -1
   try another network. If the domain is blocked, send the person their files
   from `generated/subscriptions/<name>/` directly.
 
+A `403` with `error code: 1010` comes from Cloudflare's Browser Integrity
+Check, which blocks some generic tool user agents such as Python's default.
+Clash Verge Rev, Mihomo, Shadowrocket, browsers, and `curl` pass. When testing
+with a script, set a normal `User-Agent` header.
+
 Upload errors mentioning authentication mean the `CLOUDFLARE_API_TOKEN`
 environment variable is missing, mistyped, or lacks the **Workers KV Storage ·
 Edit** permission.
