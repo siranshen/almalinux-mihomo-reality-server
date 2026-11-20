@@ -8,6 +8,7 @@ examples only. It must never contain a working server or client configuration.
 - VLESS UUIDs
 - REALITY private keys
 - Completed client links, profiles, or QR codes
+- Subscription URLs, `secrets/subscriptions.toml`, or `generated/` output
 - API or access tokens
 - Rendered server configurations
 - Private endpoint names or addresses
@@ -34,7 +35,11 @@ Deleting a file in a later commit is insufficient. Immediately:
 
 1. Generate a new VLESS UUID and update the server and every client.
 2. Generate a new REALITY keypair and short ID if the private key was exposed.
-3. Revoke any exposed provider, GitHub, or DNS API token.
+3. Revoke any exposed provider, GitHub, DNS, or Cloudflare API token.
+   A leaked subscription URL is handled like a leaked UUID: give that person a
+   new UUID and URL token (see [Client subscriptions](docs/subscriptions.md)).
+   A leaked `secrets/subscriptions.toml` exposes everyone: replace every UUID
+   and token.
 4. Remove the secret from Git history or replace the repository.
 5. Review forks, caches, CI logs, shell history, and downloaded artifacts.
 

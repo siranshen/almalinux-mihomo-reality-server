@@ -49,15 +49,42 @@ server. Select a stable TLS 1.3 destination reachable from the VPS, and set
 `dest`, `server-names`, and client SNI consistently. The destination must not be
 the proxy endpoint or resolve to the VPS itself.
 
-## Why a Cloudflare record must be DNS-only
+## Endpoint address
 
-Cloudflare's ordinary orange-cloud service terminates supported HTTP protocols;
-it does not transparently forward this raw VLESS/REALITY TCP listener. A
-Cloudflare endpoint record must be DNS-only. Client traffic then goes directly
-to the VPS.
+Clients connect to the literal public IPv4 while presenting the unrelated
+REALITY destination as SNI. No DNS name for the proxy is needed: client
+subscriptions deliver the current address.
 
-A domain is optional. The client can connect to the literal public IPv4 while
-still presenting the unrelated REALITY destination as SNI.
+If a DNS name for the VPS is created on Cloudflare anyway, it must be
+DNS-only. Cloudflare's ordinary orange-cloud service terminates supported HTTP
+protocols; it does not transparently forward this raw VLESS/REALITY TCP
+listener.
+
+## Client subscriptions
+
+```text
+secrets/subscriptions.toml (operator's computer)
+  -> scripts/subscriptions.py upload -> Cloudflare Workers KV
+  -> Cloudflare Worker on a dedicated subdomain
+  -> clients refresh over HTTPS
+```
+
+Each person has their own VLESS UUID and their own random URL token. The
+Worker serves a stored file only for an exact, long random name and returns 404
+for everything else. Responses are marked not to be cached.
+
+Trade-offs:
+
+- Subscription files contain UUIDs, so Cloudflare is trusted with them. The
+  REALITY private key stays on the VPS and is never uploaded.
+- The subscription domain is a separate service from the proxy. Clients fetch
+  it directly, not through the proxy, so a broken proxy can still be replaced.
+  If the domain itself becomes unreachable, settings must be delivered by
+  another channel.
+- The upload API token can modify every subscription. It is held only in the
+  operator's terminal environment.
+
+See [Client subscriptions](subscriptions.md).
 
 ## Server-side network isolation
 

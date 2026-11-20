@@ -92,6 +92,11 @@ getenforce
 
 ## Credential rotation
 
+With client subscriptions, follow the step-by-step tasks in
+[Client subscriptions](subscriptions.md#everyday-tasks): changing the VPS
+address, adding or removing a person, replacing a leaked URL or UUID, and
+rotating the REALITY key. The steps below apply to clients configured by hand.
+
 ### VLESS UUID
 
 1. Generate a new UUID.
@@ -116,6 +121,7 @@ one promptly.
 Back up encrypted copies of:
 
 - `/etc/mihomo-server/config.yaml`;
+- `secrets/subscriptions.toml`, if you use client subscriptions;
 - the matching client connection values; and
 - operational notes identifying the REALITY destination.
 
@@ -132,6 +138,7 @@ sudo rm -f /usr/local/bin/mihomo /usr/local/bin/mihomo.previous
 ```
 
 Remove `/etc/mihomo-server`, `/var/lib/mihomo-server`, the `mihomo` account,
-DNS record, and firewall rule separately only when intentionally decommissioning
+firewall rule, and any subscription Worker, KV namespace, and API token
+separately only when intentionally decommissioning
 the endpoint. Configuration removal destroys credentials and should not be
 combined with a routine package uninstall.

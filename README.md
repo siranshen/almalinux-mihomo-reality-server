@@ -22,8 +22,9 @@ Internet TCP 443
 - Mihomo runs as a dedicated, non-login `mihomo` user under systemd.
 - The service receives only `CAP_NET_BIND_SERVICE`, allowing that user to bind
   TCP 443 without running as root.
-- A DNS-only A record can point to the VPS's stable public IPv4. Cloudflare
-  proxying is not used.
+- Clients connect to the VPS public IPv4 directly. Optional per-person
+  subscriptions, served from your own domain on Cloudflare, deliver client
+  settings, so changing the address or a secret is a single edit.
 - Server rules reject private, reserved, metadata, and IPv6 destinations.
 - Logs go to the systemd journal, which must have bounded retention.
 - The unit applies conservative memory and task limits suitable for a 1 GiB VPS.
@@ -36,7 +37,7 @@ See [Architecture and security](docs/architecture.md) and
 - AlmaLinux 9 x86_64 with root or sudo access
 - A public IPv4 address and inbound TCP 443 permitted by the provider
 - A Mihomo-compatible client
-- Optional: a domain hosted by any DNS provider
+- Optional: a domain with DNS on Cloudflare, for client subscriptions
 
 Check the machine before making changes:
 
@@ -107,14 +108,12 @@ it.
 Choose a stable TLS 1.3 website reachable from the VPS:
 
 ```text
-ENDPOINT_FQDN       proxy.example.com       # optional but recommended
 REALITY_SERVER_NAME stable-target.example   # unrelated TLS 1.3 website
 PORT                443
 ```
 
 Use the same REALITY hostname for server `dest`, server `server-names`, and
-client `servername`/SNI. Do not use the proxy endpoint itself or another name
-resolving to this VPS.
+client `servername`/SNI. Do not use a name that resolves to this VPS.
 
 Test the destination:
 
@@ -193,22 +192,19 @@ sudo -u mihomo /usr/local/bin/mihomo \
 
 Do not start after failed validation.
 
-## 6. Configure DNS
+## 6. Note the public address
 
-A hostname is recommended but not required. Create an A record pointing to the
-VPS public IPv4. With Cloudflare, it must be **DNS only** (gray cloud), because
-the ordinary orange-cloud proxy does not transparently carry this raw
-VLESS/REALITY TCP service.
-
-A VPS address is normally stable, so DDNS is intentionally omitted. Confirm:
+Clients connect to the VPS public IPv4 directly, while presenting the
+unrelated REALITY server name as SNI. Confirm the address:
 
 ```sh
-dig +short proxy.example.com A
 curl -4 https://api.ipify.org; echo
 ```
 
-The addresses should match. A client can use the literal VPS IPv4 while still
-using the unrelated REALITY server name as SNI.
+No DNS name for the proxy is needed. When the address changes, client
+subscriptions deliver the new one (see section 9). If you do create a DNS name
+for the VPS on Cloudflare, it must be **DNS only** (gray cloud): the ordinary
+orange-cloud proxy does not carry this raw VLESS/REALITY TCP service.
 
 ## 7. Open TCP 443 safely
 
@@ -285,9 +281,15 @@ If SELinux reports a denial, diagnose it rather than disabling SELinux; see
 [Chrome Los Angeles launcher setup](docs/chrome-macos.md) as part of client
 configuration, in addition to the proxy setup below.
 
-Copy `examples/mihomo-client.yaml.example` outside Git and replace its
-placeholders. The endpoint can be `proxy.example.com` or the VPS IPv4. Validate
-before importing:
+The recommended way is per-person subscriptions: one private file on your
+computer, one command to publish, and every client refreshes from its own
+URL. Each person gets their own UUID and can be removed individually. See
+[Client subscriptions](docs/subscriptions.md).
+
+To configure a single client by hand instead, copy
+`examples/mihomo-client.yaml.example` outside Git, replace its placeholders
+with the VPS IPv4 and credentials, and delete the subscription-domain rule.
+Validate before importing:
 
 ```sh
 mihomo -t -d /tmp/mihomo-client-test -f /path/to/mihomo-client.yaml
@@ -326,6 +328,7 @@ systemctl show mihomo-server \
 - [Resource sizing](docs/resources.md)
 - [Client setup](docs/client-setup.md)
 - [Chrome timezone launcher on macOS](docs/chrome-macos.md)
+- [Client subscriptions](docs/subscriptions.md)
 - [Operations and upgrades](docs/operations.md)
 - [Troubleshooting](docs/troubleshooting.md)
 - [Security policy](SECURITY.md)

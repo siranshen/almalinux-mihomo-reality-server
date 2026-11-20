@@ -38,13 +38,13 @@ Check every layer:
 sudo ss -ltnp 'sport = :443'
 sudo firewall-cmd --get-active-zones
 sudo firewall-cmd --query-port=443/tcp
-dig +short proxy.example.com A
 curl -4 https://api.ipify.org; echo
 ```
 
 Also check the provider-side firewall. Test from another network rather than
-from the VPS itself. Confirm the DNS A record points to the VPS and is not
-Cloudflare orange-cloud proxied.
+from the VPS itself. Confirm the client's `server` address matches the VPS
+public IPv4. With subscriptions, check `server.address` in
+`secrets/subscriptions.toml` and refresh the client.
 
 Only TCP 443 is required. Opening UDP 443 does not fix a TCP listener.
 
@@ -66,8 +66,8 @@ openssl s_client -connect stable-target.example:443 \
   -servername stable-target.example -tls1_3 </dev/null
 ```
 
-The endpoint hostname and REALITY destination are different roles. Do not use
-the endpoint hostname as the destination merely because it is convenient.
+The REALITY destination must be an unrelated website, never a name that
+resolves to the VPS itself.
 
 ## systemd reports a condition failure
 
@@ -140,6 +140,30 @@ sudo MIHOMO_VERSION=vX.Y.Z ./scripts/install.sh
 Pinning a version still uses official GitHub metadata because the installer
 requires the published asset SHA-256 digest. Do not bypass digest verification
 with an arbitrary binary.
+
+## A subscription does not refresh
+
+Check from the affected network, replacing the URL with the person's own:
+
+```sh
+curl -sI https://sub.example.com/<token>-clash | head -1
+```
+
+- `200`: the file is served. Check the client's own update error. In Clash
+  Verge Rev, confirm the profile still contains the
+  `DOMAIN,<subscription host>,DIRECT` rule, so refreshes do not depend on a
+  broken proxy.
+- `404`: the file is missing. Run `upload` again and confirm the person is
+  still listed in `secrets/subscriptions.toml`. Wait about a minute after an
+  upload.
+- Timeout or connection error: the subdomain is unreachable from that
+  network. Check the Worker's custom domain in the Cloudflare dashboard, then
+  try another network. If the domain is blocked, send the person their files
+  from `generated/subscriptions/<name>/` directly.
+
+Upload errors mentioning authentication mean the `CLOUDFLARE_API_TOKEN`
+environment variable is missing, mistyped, or lacks the **Workers KV Storage ·
+Edit** permission.
 
 ## Client direct/proxy routing looks wrong
 

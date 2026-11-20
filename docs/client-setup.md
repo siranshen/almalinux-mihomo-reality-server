@@ -1,10 +1,16 @@
 # Client setup and routing
 
+The recommended way to deliver client settings is per-person subscriptions;
+see [Client subscriptions](subscriptions.md). They are built from the same
+templates described here. This page explains what the templates do and how to
+set up a client by hand.
+
 ## Mihomo / Clash Verge Rev
 
 Copy `examples/mihomo-client.yaml.example` outside the repository and replace
-all placeholders. The endpoint may be a DNS-only hostname or the VPS public
-IPv4. Validate before import:
+all placeholders. `__ENDPOINT_IPV4__` is the VPS public IPv4. Without
+subscriptions, delete the `DOMAIN,__SUBSCRIPTION_HOST__,DIRECT` rule. Validate
+before import:
 
 ```sh
 mihomo -t -d /tmp/mihomo-client-test -f /path/to/mihomo-client.yaml
@@ -22,9 +28,10 @@ In Clash Verge Rev:
 6. For Chrome on macOS, complete the required
    [Chrome timezone launcher setup](chrome-macos.md).
 
-The first rule sends the VPS's public IPv4 directly, keeping SSH, diagnostics,
-and the endpoint itself outside TUN proxy routing. Set `__ENDPOINT_IPV4__` even
-when the proxy's `server` field uses a hostname.
+The first rule sends the subscription domain directly, so a client can still
+refresh its settings when the proxy is down. The second sends the VPS's public
+IPv4 directly, keeping SSH, diagnostics, and the endpoint itself outside TUN
+proxy routing.
 
 Every client configuration must include `DOMAIN,pi.starlovin.tech,DIRECT`
 before rule sets and the final proxy rule. The Mihomo template places this
@@ -35,6 +42,10 @@ The remaining example sends maintained Chinese domain and literal-IP
 destinations direct, while foreign and unknown destinations use the VPS. Domain
 classification runs before IP classification. `no-resolve` on target-IP rules
 avoids local DNS lookups solely to classify unknown foreign names.
+
+With a subscription, add personal rules through **Edit Rules** rather than
+editing the profile; see
+[Adding your own rules](subscriptions.md#adding-your-own-rules).
 
 Provider rule downloads use `proxy: PROXY`, avoiding dependence on direct
 GitHub reachability from the client network.
@@ -51,14 +62,15 @@ general WebRTC leak protection.
 
 The example uses:
 
-- system DNS to bootstrap the proxy endpoint;
-- system DNS for intentionally direct destinations;
+- system DNS for intentionally direct destinations, including the
+  subscription domain;
 - Cloudflare DoH through `PROXY` for other client-side resolution; and
 - Fake-IP to preserve domain names through TUN interception.
 
-The endpoint lookup necessarily happens before the proxy exists. It reveals the
-endpoint hostname, not the later proxy-routed browsing names. Local DNS for an
-intentionally direct destination is expected.
+The proxy `server` is a literal IPv4, so no DNS lookup is needed to reach it.
+The `proxy-server-nameserver` setting only matters if you change `server` to a
+hostname; that lookup happens before the tunnel exists and reveals only that
+hostname. Local DNS for an intentionally direct destination is expected.
 
 The reference server rejects outbound IPv6, so the example client disables it.
 In Clash Verge Rev, also turn off **Settings → Clash Settings → IPv6** manually;
@@ -66,8 +78,10 @@ the app can override the imported profile's `ipv6: false` setting.
 
 ## Shadowrocket
 
-Copy `examples/shadowrocket-links.txt.example` outside Git and replace all
-placeholders. The completed URL installs the node only; routing rules remain a
+With subscriptions, add the person's `-shadowrocket` URL as a **Subscribe**
+entry; see [Client subscriptions](subscriptions.md). By hand, copy
+`examples/shadowrocket-links.txt.example` outside Git and replace all
+placeholders. Either way, this installs the node only; routing rules remain a
 separate Shadowrocket configuration.
 
 A suitable order is:

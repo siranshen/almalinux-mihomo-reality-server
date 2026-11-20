@@ -1,4 +1,5 @@
-# Replace every marked value before importing into a Mihomo client.
+# Replace every marked value before importing into a Mihomo client, or let
+# scripts/subscriptions.py fill them in for each person.
 # The completed file contains a bearer credential and must not be committed.
 mixed-port: 7890
 mode: rule
@@ -23,7 +24,7 @@ dns:
 proxies:
   - name: VPS Reality
     type: vless
-    server: __ENDPOINT_HOST_OR_IPV4__
+    server: __ENDPOINT_IPV4__
     port: 443
     uuid: __VLESS_UUID__
     network: tcp
@@ -65,8 +66,11 @@ rules:
   # Always bypass the proxy for this hostname, before broader routing rules.
   - DOMAIN,pi.starlovin.tech,DIRECT
 
-  # Keep administration and diagnostics to the proxy endpoint outside TUN.
-  # Use the endpoint's current public IPv4 even when `server` is a hostname.
+  # Fetch subscription updates directly, so a broken proxy can still be
+  # replaced by refreshing. Delete this rule if you do not use subscriptions.
+  - DOMAIN,__SUBSCRIPTION_HOST__,DIRECT
+
+  # Keep administration and diagnostics to the VPS outside TUN.
   - IP-CIDR,__ENDPOINT_IPV4__/32,DIRECT,no-resolve
 
   # Keep this STUN hostname off the China-direct rule to avoid exposing the ISP IP.
