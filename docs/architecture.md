@@ -64,19 +64,27 @@ listener.
 
 ```text
 secrets/subscriptions.toml (operator's computer)
-  -> scripts/subscriptions.py upload -> Cloudflare Workers KV
+  -> scripts/subscriptions.py deploy
+       -> users list on every VPS, over SSH
+       -> Cloudflare Workers KV
   -> Cloudflare Worker on a dedicated subdomain
   -> clients refresh over HTTPS
 ```
 
-Each person has their own VLESS UUID and their own random URL token. The
-Worker serves a stored file only for an exact, long random name and returns 404
+Each person has their own VLESS UUID, valid on every server, and their own
+random URL token. Each server has its own REALITY keypair and short ID, so one
+server's key leaking does not affect the others. `deploy` edits only the
+marked users list in each server's configuration, validates the result before
+installing it, and restarts only when the users changed. The Worker serves a stored file only for an exact, long random name and returns 404
 for everything else. Responses are marked not to be cached.
 
 Trade-offs:
 
-- Subscription files contain UUIDs, so Cloudflare is trusted with them. The
-  REALITY private key stays on the VPS and is never uploaded.
+- Subscription files contain UUIDs, so Cloudflare is trusted with them.
+  REALITY private keys stay on their own servers and are never uploaded or
+  stored on the operator's computer.
+- The operator's computer holds every UUID and has root SSH access to every
+  server. Protect it accordingly.
 - The subscription domain is a separate service from the proxy. Clients fetch
   it directly, not through the proxy, so a broken proxy can still be replaced.
   If the domain itself becomes unreachable, settings must be delivered by

@@ -1,21 +1,27 @@
 #!/usr/bin/env python3
 """Build and publish per-person client subscriptions.
 
-Reads a private TOML file (default: secrets/subscriptions.toml) and, for each
-person, renders:
+Reads a private TOML file (default: secrets/subscriptions.toml) listing the
+servers and the people. For each person it renders:
 
-  * a complete Mihomo / Clash Verge Rev profile, and
-  * a Shadowrocket subscription (base64 list of vless:// links).
+  * a complete Mihomo / Clash Verge Rev profile with one entry per server, and
+  * a Shadowrocket subscription (base64 list of vless:// links, one per
+    server).
 
-It also renders the `users:` list for the server listener. The `upload`
-command syncs the per-person files to a Cloudflare Workers KV namespace that is
-served by examples/cloudflare-worker.js.
+Every person has one UUID that works on every server. Each server keeps its
+own REALITY keypair; only the public key is stored locally.
+
+The `upload` command syncs the per-person files to a Cloudflare Workers KV
+namespace served by examples/cloudflare-worker.js. The `deploy` command also
+updates the users list on every server over SSH.
 
 Commands:
   new-person NAME   print a [[people]] block with a fresh UUID and URL token
   build             write all files to generated/subscriptions/
   upload            build, then upload all files to Workers KV and delete
                     stale ones
+  deploy            build, update every server's users over SSH (restarting
+                    only servers whose users changed), then upload
 
 Requires Python 3.11+ and no third-party packages. See docs/subscriptions.md.
 """
@@ -30,6 +36,7 @@ import os
 import re
 import secrets
 import shutil
+import subprocess
 import sys
 import urllib.error
 import urllib.parse
@@ -69,8 +76,20 @@ HOST_RE = re.compile(
 )
 CLOUDFLARE_ID_RE = re.compile(r"^[0-9a-f]{32}$")
 PROFILE_NAME_RE = re.compile(r"^[ -~]{1,64}$")  # printable ASCII
+# Names Mihomo already uses for built-in policies or the generated group.
+RESERVED_SERVER_NAMES = {"proxy", "direct", "reject", "reject-drop", "pass",
+                         "compatible", "global"}
+SSH_DEST_RE = re.compile(r"^[A-Za-z0-9_.@:\[\]-]{1,255}$")
 PLACEHOLDER_RE = re.compile(r"__[A-Z0-9_]+__")
 LINK_RE = re.compile(r"^[a-z0-9]+://\S+$")
+
+# Lines between these markers in the Clash template are repeated per server.
+BLOCK_BEGIN = "# BEGIN per-server"
+BLOCK_END = "# END per-server"
+SERVER_PLACEHOLDERS = (
+    "__SERVER_NAME__", "__ENDPOINT_IPV4__", "__REALITY_SERVER_NAME__",
+    "__REALITY_PUBLIC_KEY__", "__REALITY_SHORT_ID__",
+)
 
 
 class UserError(Exception):
@@ -85,11 +104,18 @@ class Person:
 
 
 @dataclass(frozen=True)
-class Config:
+class Server:
+    name: str
     address: str
+    ssh: str | None
     reality_server_name: str
     reality_public_key: str
     reality_short_id: str
+
+
+@dataclass(frozen=True)
+class Config:
+    servers: tuple[Server, ...]
     sub_host: str
     profile_name: str
     update_interval_hours: int
@@ -147,21 +173,10 @@ def load_config(path: Path) -> Config:
     except tomllib.TOMLDecodeError as exc:
         raise UserError(f"{path}: {exc}") from None
 
-    server = data.get("server", {})
-    address = _get(server, "address", "server")
-    try:
-        if not isinstance(address, str):
-            raise ValueError
-        address = str(ipaddress.IPv4Address(address))
-    except ValueError:
-        raise UserError("server.address must be an IPv4 address") from None
-
-    server_name = _string(server, "reality_server_name", "server", HOST_RE,
-                          "a hostname such as www.example.com")
-    public_key = _string(server, "reality_public_key", "server",
-                         PUBLIC_KEY_RE, "a 43-character REALITY public key")
-    short_id = _string(server, "reality_short_id", "server", SHORT_ID_RE,
-                       "2 to 16 lowercase hexadecimal characters")
+    if "server" in data:
+        raise UserError("rename [server] to [[servers]] and give it a name "
+                        "(see examples/subscriptions.toml.example)")
+    servers = _load_servers(data.get("servers"))
 
     sub = data.get("subscription", {})
     sub_host = _string(sub, "host", "subscription", HOST_RE,
@@ -198,9 +213,50 @@ def load_config(path: Path) -> Config:
 
     people = _load_people(data.get("people"))
 
-    return Config(address, server_name, public_key, short_id, sub_host,
-                  profile_name, interval, account_id, namespace_id,
-                  templates, people)
+    return Config(servers, sub_host, profile_name, interval, account_id,
+                  namespace_id, templates, people)
+
+
+def _load_servers(raw) -> tuple[Server, ...]:
+    if not isinstance(raw, list) or not raw:
+        raise UserError("add at least one [[servers]] block")
+    servers = []
+    seen: dict[str, set[str]] = {"name": set(), "address": set()}
+    for index, entry in enumerate(raw, start=1):
+        where = f"servers #{index}"
+        name = _string(entry, "name", where, NAME_RE,
+                       "1 to 32 letters, digits, '-' or '_'")
+        where = f"servers '{name}'"
+        if name.lower() in RESERVED_SERVER_NAMES:
+            raise UserError(f"{where}: '{name}' is a reserved name; "
+                            "choose another")
+        address = _get(entry, "address", where)
+        try:
+            if not isinstance(address, str):
+                raise ValueError
+            address = str(ipaddress.IPv4Address(address))
+        except ValueError:
+            raise UserError(f"{where}.address must be an IPv4 address") \
+                from None
+        ssh = _string(entry, "ssh", where, SSH_DEST_RE,
+                      "an SSH destination such as root@203.0.113.10",
+                      required=False)
+        if ssh and ssh.startswith("-"):
+            raise UserError(f"{where}.ssh must not start with '-'")
+        server_name = _string(entry, "reality_server_name", where, HOST_RE,
+                              "a hostname such as www.example.com")
+        public_key = _string(entry, "reality_public_key", where,
+                             PUBLIC_KEY_RE,
+                             "a 43-character REALITY public key")
+        short_id = _string(entry, "reality_short_id", where, SHORT_ID_RE,
+                           "2 to 16 lowercase hexadecimal characters")
+        for field, value in (("name", name.lower()), ("address", address)):
+            if value in seen[field]:
+                raise UserError(f"{where}: {field} is used more than once")
+            seen[field].add(value)
+        servers.append(Server(name, address, ssh, server_name, public_key,
+                              short_id))
+    return tuple(servers)
 
 
 def _load_people(raw) -> tuple[Person, ...]:
@@ -245,24 +301,66 @@ def _read_template(cfg: Config, kind: str) -> str:
         raise UserError(f"cannot read {kind} template {path}: {exc}") from None
 
 
-def _fill(text: str, values: dict[str, str], label: str) -> str:
+def _replace(text: str, values: dict[str, str]) -> str:
     for placeholder, value in values.items():
         text = text.replace(placeholder, value)
+    return text
+
+
+def _check_filled(text: str, label: str) -> str:
     left = sorted(set(PLACEHOLDER_RE.findall(text)))
+    misplaced = [p for p in left if p in SERVER_PLACEHOLDERS]
+    if misplaced:
+        raise UserError(
+            f"{label}: {', '.join(misplaced)} must be inside a "
+            f"'{BLOCK_BEGIN}' / '{BLOCK_END}' block")
     if left:
         raise UserError(f"{label}: unknown placeholders {', '.join(left)}")
     return text
 
 
-def _values(cfg: Config, person: Person) -> dict[str, str]:
+def _server_values(server: Server) -> dict[str, str]:
     return {
-        "__ENDPOINT_IPV4__": cfg.address,
+        "__SERVER_NAME__": server.name,
+        "__ENDPOINT_IPV4__": server.address,
+        "__REALITY_SERVER_NAME__": server.reality_server_name,
+        "__REALITY_PUBLIC_KEY__": server.reality_public_key,
+        "__REALITY_SHORT_ID__": server.reality_short_id,
+    }
+
+
+def _person_values(cfg: Config, person: Person) -> dict[str, str]:
+    return {
         "__VLESS_UUID__": person.uuid,
-        "__REALITY_SERVER_NAME__": cfg.reality_server_name,
-        "__REALITY_PUBLIC_KEY__": cfg.reality_public_key,
-        "__REALITY_SHORT_ID__": cfg.reality_short_id,
         "__SUBSCRIPTION_HOST__": cfg.sub_host,
     }
+
+
+def _expand_server_blocks(template: str, servers: tuple[Server, ...],
+                          label: str) -> str:
+    """Repeat every BEGIN/END per-server block once per server."""
+    out: list[str] = []
+    block: list[str] | None = None
+    for line in template.splitlines(keepends=True):
+        marker = line.strip()
+        if marker == BLOCK_BEGIN:
+            if block is not None:
+                raise UserError(f"{label}: nested '{BLOCK_BEGIN}'")
+            block = []
+        elif marker == BLOCK_END:
+            if block is None:
+                raise UserError(f"{label}: '{BLOCK_END}' without a begin")
+            text = "".join(block)
+            for server in servers:
+                out.append(_replace(text, _server_values(server)))
+            block = None
+        elif block is not None:
+            block.append(line)
+        else:
+            out.append(line)
+    if block is not None:
+        raise UserError(f"{label}: '{BLOCK_BEGIN}' without an end")
+    return "".join(out)
 
 
 def render(cfg: Config) -> list[OutFile]:
@@ -281,16 +379,26 @@ def render(cfg: Config) -> list[OutFile]:
         "profile-update-interval": str(cfg.update_interval_hours),
     }
 
+    clash_expanded = _expand_server_blocks(clash_template, cfg.servers,
+                                           "clash template")
     files = []
     for person in cfg.people:
-        values = _values(cfg, person)
+        values = _person_values(cfg, person)
         clash = (
             f"# Generated by scripts/subscriptions.py for {person.name}.\n"
             "# Contains a personal credential. Do not share.\n"
-            + _fill(clash_template, values, "clash template")
+            + _check_filled(_replace(clash_expanded, values),
+                            "clash template")
         )
-        links = [_fill(line, values, "shadowrocket template")
-                 for line in links_template]
+        # Every link line in the Shadowrocket template becomes one entry
+        # per server.
+        links = [
+            _check_filled(
+                _replace(_replace(line, _server_values(server)), values),
+                "shadowrocket template")
+            for server in cfg.servers
+            for line in links_template
+        ]
         shadowrocket = base64.b64encode(
             ("\n".join(links) + "\n").encode()).decode() + "\n"
 
@@ -306,9 +414,12 @@ def render(cfg: Config) -> list[OutFile]:
 def render_server_users(cfg: Config) -> str:
     lines = [
         "# Generated by scripts/subscriptions.py. Contains every UUID.",
-        "# Replace the `users:` block of the reality-in listener in",
-        "# /etc/mihomo-server/config.yaml with the lines below.",
+        "# The same list belongs on every server. `deploy` installs it for",
+        "# you; to do it by hand, replace the `users:` block of the",
+        "# reality-in listener in /etc/mihomo-server/config.yaml with the",
+        "# lines below.",
         "    users:",
+        "      # BEGIN subscriptions.py managed users",
     ]
     for person in cfg.people:
         lines += [
@@ -316,6 +427,7 @@ def render_server_users(cfg: Config) -> str:
             f"        uuid: {person.uuid}",
             "        flow: xtls-rprx-vision",
         ]
+    lines.append("      # END subscriptions.py managed users")
     return "\n".join(lines) + "\n"
 
 
@@ -464,8 +576,7 @@ def _api_errors(payload: bytes) -> str:
         return "no error details"
 
 
-def cmd_upload(args) -> None:
-    cfg = load_config(args.config)
+def _upload_token(cfg: Config) -> str:
     if not cfg.account_id or not cfg.kv_namespace_id:
         raise UserError("set cloudflare.account_id and "
                         "cloudflare.kv_namespace_id for uploads")
@@ -473,11 +584,21 @@ def cmd_upload(args) -> None:
     if not token:
         raise UserError(f"set the {TOKEN_ENV} environment variable "
                         "(see docs/subscriptions.md)")
+    return token
 
+
+def cmd_upload(args) -> None:
+    cfg = load_config(args.config)
+    token = _upload_token(cfg)
     files = render(cfg)
     if not args.dry_run:
         # Keep local copies in step with what clients will download.
         write_outputs(cfg, files, args.out)
+    sync_kv(cfg, files, token, args.dry_run)
+
+
+def sync_kv(cfg: Config, files: list[OutFile], token: str,
+            dry_run: bool) -> None:
     kv = CloudflareKV(cfg.account_id, cfg.kv_namespace_id, token)
     wanted = {item.key for item in files}
     existing = kv.list_keys()
@@ -486,7 +607,7 @@ def cmd_upload(args) -> None:
     unknown = [key for key in existing
                if key not in wanted and not OUR_KEY_RE.fullmatch(key)]
 
-    if args.dry_run:
+    if dry_run:
         print(f"Would upload {len(files)} files for {len(cfg.people)} "
               f"people and delete {len(stale)} old files.")
     else:
@@ -500,6 +621,182 @@ def cmd_upload(args) -> None:
     if unknown:
         print(f"Left {len(unknown)} unrelated keys in the namespace "
               "untouched.")
+
+
+# --------------------------------------------------------------------------
+# Server update over SSH
+
+# Runs on the VPS with its system Python (3.9 on AlmaLinux 9). It replaces
+# only the lines between the two marker comments in the server config,
+# validates the result with Mihomo before installing it, and restarts the
+# service only when the users actually changed. If the service does not come
+# back, the previous config is restored.
+REMOTE_SCRIPT = r'''
+import base64, json, os, subprocess, sys, tempfile, time
+
+CONFIG = "/etc/mihomo-server/config.yaml"
+PREVIOUS = CONFIG + ".previous"
+PENDING = CONFIG + ".restart-pending"
+STATE_DIR = "/var/lib/mihomo-server"
+BINARY = "/usr/local/bin/mihomo"
+SERVICE = "mihomo-server"
+BEGIN = "# BEGIN subscriptions.py managed users"
+END = "# END subscriptions.py managed users"
+
+request = json.loads(base64.b64decode("@PAYLOAD@").decode())
+
+
+def fail(message):
+    print("server: " + message, file=sys.stderr)
+    sys.exit(1)
+
+
+def run(*command):
+    return subprocess.run(command, stdout=subprocess.PIPE,
+                          stderr=subprocess.STDOUT, universal_newlines=True)
+
+
+if os.geteuid() != 0:
+    fail("must run as root")
+with open(CONFIG) as handle:
+    lines = handle.read().splitlines(True)
+begins = [i for i, line in enumerate(lines) if line.strip() == BEGIN]
+ends = [i for i, line in enumerate(lines) if line.strip() == END]
+if len(begins) != 1 or len(ends) != 1 or begins[0] >= ends[0]:
+    fail("the marker comments around the users list are missing or "
+         "duplicated in " + CONFIG + " (see docs/subscriptions.md)")
+
+marker = lines[begins[0]]
+indent = marker[:len(marker) - len(marker.lstrip())]
+block = []
+for user in request["users"]:
+    block += [
+        indent + "- username: " + user["name"] + "\n",
+        indent + "  uuid: " + user["uuid"] + "\n",
+        indent + "  flow: xtls-rprx-vision\n",
+    ]
+new_lines = lines[:begins[0] + 1] + block + lines[ends[0]:]
+
+def write_temp(content_lines, info):
+    """Write a file next to CONFIG with CONFIG's owner and mode."""
+    fd, temp = tempfile.mkstemp(prefix=".config-", suffix=".yaml",
+                                dir=os.path.dirname(CONFIG))
+    try:
+        with os.fdopen(fd, "w") as handle:
+            handle.writelines(content_lines)
+        os.chown(temp, info.st_uid, info.st_gid)
+        os.chmod(temp, info.st_mode & 0o7777)
+    except BaseException:
+        os.unlink(temp)
+        raise
+    return temp
+
+
+def restart_ok():
+    if run("systemctl", "restart", SERVICE).returncode != 0:
+        return False
+    time.sleep(3)
+    return run("systemctl", "is-active", SERVICE).stdout.strip() == "active"
+
+
+changed = new_lines != lines
+# Set while a changed file is installed but not yet confirmed running, so an
+# interrupted deploy still restarts next time.
+pending = os.path.exists(PENDING)
+if not changed and not pending:
+    print("server: users unchanged, no restart needed")
+    sys.exit(0)
+if request["dry_run"]:
+    print("server: users would change; the service would restart" if changed
+          else "server: an earlier update was not applied; would restart")
+    sys.exit(0)
+
+info = os.stat(CONFIG)
+if changed:
+    temp = write_temp(new_lines, info)
+    try:
+        check = run("runuser", "-u", "mihomo", "--", BINARY,
+                    "-t", "-d", STATE_DIR, "-f", temp)
+        if check.returncode != 0:
+            fail("the new config failed validation; nothing was changed:\n"
+                 + check.stdout[-2000:])
+        os.replace(write_temp(lines, info), PREVIOUS)
+        open(PENDING, "w").close()
+        os.replace(temp, CONFIG)
+        temp = None
+    finally:
+        if temp and os.path.exists(temp):
+            os.unlink(temp)
+    run("restorecon", CONFIG, PREVIOUS)
+
+if restart_ok():
+    if os.path.exists(PENDING):
+        os.unlink(PENDING)
+    print("server: updated users (%d) and restarted the service"
+          % len(request["users"]))
+    sys.exit(0)
+
+if not changed:
+    fail("the service failed to restart. Check: journalctl -u " + SERVICE)
+os.replace(write_temp(lines, info), CONFIG)
+run("restorecon", CONFIG)
+if restart_ok():
+    os.unlink(PENDING)
+    fail("the service did not start with the new config; the previous "
+         "config was restored and is running. Check: journalctl -u "
+         + SERVICE)
+fail("the service did not start with the new config, nor after restoring "
+     "the previous config. It is DOWN. Check: journalctl -u " + SERVICE)
+'''
+
+
+def update_servers(cfg: Config, dry_run: bool) -> None:
+    missing = [s.name for s in cfg.servers if not s.ssh]
+    if missing:
+        raise UserError(f"set ssh for server(s) {', '.join(missing)} "
+                        "(for example ssh = \"root@203.0.113.10\")")
+    failed = []
+    for server in cfg.servers:
+        print(f"[{server.name}]", flush=True)
+        if not _update_server(server, cfg, dry_run):
+            failed.append(server.name)
+    if failed:
+        raise UserError(
+            f"updating {', '.join(failed)} failed (see the messages above), "
+            "so subscriptions were not uploaded. Fix the problem and run "
+            "deploy again, or run upload to publish anyway.")
+
+
+def _update_server(server: Server, cfg: Config, dry_run: bool) -> bool:
+    payload = json.dumps({
+        "users": [{"name": p.name, "uuid": p.uuid} for p in cfg.people],
+        "dry_run": dry_run,
+    }).encode()
+    script = REMOTE_SCRIPT.replace(
+        "@PAYLOAD@", base64.b64encode(payload).decode())
+    try:
+        result = subprocess.run(
+            ["ssh", "-o", "ConnectTimeout=15", "--", server.ssh,
+             "python3", "-"],
+            input=script, text=True, timeout=180)
+    except FileNotFoundError:
+        raise UserError("ssh is not installed") from None
+    except subprocess.TimeoutExpired:
+        print("server: timed out", file=sys.stderr)
+        return False
+    return result.returncode == 0
+
+
+def cmd_deploy(args) -> None:
+    cfg = load_config(args.config)
+    token = _upload_token(cfg)
+    files = render(cfg)
+    if not args.dry_run:
+        write_outputs(cfg, files, args.out)
+    # Servers first: new people can connect as soon as their files appear,
+    # and removed people lose access even if the upload step fails.
+    update_servers(cfg, args.dry_run)
+    sync_kv(cfg, files, token, args.dry_run)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -529,6 +826,15 @@ def main(argv: list[str] | None = None) -> int:
         "--out", type=Path, default=DEFAULT_OUT,
         help=f"output directory (default: {DEFAULT_OUT.relative_to(REPO)})")
     upload.set_defaults(func=cmd_upload)
+
+    deploy = commands.add_parser(
+        "deploy", help="build, update the server's users, then upload")
+    deploy.add_argument("--dry-run", action="store_true",
+                        help="show what would change without changing it")
+    deploy.add_argument(
+        "--out", type=Path, default=DEFAULT_OUT,
+        help=f"output directory (default: {DEFAULT_OUT.relative_to(REPO)})")
+    deploy.set_defaults(func=cmd_deploy)
 
     args = parser.parse_args(argv)
     try:

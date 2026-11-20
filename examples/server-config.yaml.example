@@ -13,9 +13,13 @@ listeners:
     listen: 0.0.0.0
     port: 443
     users:
+      # scripts/subscriptions.py deploy replaces the lines between these
+      # markers. Keep the markers if you use it.
+      # BEGIN subscriptions.py managed users
       - username: personal
         uuid: __VLESS_UUID__
         flow: xtls-rprx-vision
+      # END subscriptions.py managed users
     reality-config:
       dest: __REALITY_SERVER_NAME__:443
       private-key: __REALITY_PRIVATE_KEY__

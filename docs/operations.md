@@ -93,9 +93,10 @@ getenforce
 ## Credential rotation
 
 With client subscriptions, follow the step-by-step tasks in
-[Client subscriptions](subscriptions.md#everyday-tasks): changing the VPS
-address, adding or removing a person, replacing a leaked URL or UUID, and
-rotating the REALITY key. The steps below apply to clients configured by hand.
+[Client subscriptions](subscriptions.md#everyday-tasks): changing a VPS
+address, adding or removing a server or person, replacing a leaked URL or
+UUID, and rotating a server's REALITY key. `deploy` keeps the previous server
+configuration as `/etc/mihomo-server/config.yaml.previous`. The steps below apply to clients configured by hand.
 
 ### VLESS UUID
 

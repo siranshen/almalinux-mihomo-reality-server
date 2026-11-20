@@ -8,9 +8,11 @@ set up a client by hand.
 ## Mihomo / Clash Verge Rev
 
 Copy `examples/mihomo-client.yaml.example` outside the repository and replace
-all placeholders. `__ENDPOINT_IPV4__` is the VPS public IPv4. Without
-subscriptions, delete the `DOMAIN,__SUBSCRIPTION_HOST__,DIRECT` rule. Validate
-before import:
+all placeholders. `__ENDPOINT_IPV4__` is the VPS public IPv4 and
+`__SERVER_NAME__` is any name for it. The lines between `BEGIN per-server`
+and `END per-server` describe one server; copy them once per server if you
+have several. Without subscriptions, delete the
+`DOMAIN,__SUBSCRIPTION_HOST__,DIRECT` rule. Validate before import:
 
 ```sh
 mihomo -t -d /tmp/mihomo-client-test -f /path/to/mihomo-client.yaml
@@ -28,8 +30,10 @@ In Clash Verge Rev:
 6. For Chrome on macOS, complete the required
    [Chrome timezone launcher setup](chrome-macos.md).
 
+The `PROXY` group lists every server; pick one by hand.
+
 The first rule sends the subscription domain directly, so a client can still
-refresh its settings when the proxy is down. The second sends the VPS's public
+refresh its settings when the proxy is down. The next rules send each VPS's public
 IPv4 directly, keeping SSH, diagnostics, and the endpoint itself outside TUN
 proxy routing.
 

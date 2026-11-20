@@ -21,8 +21,12 @@ dns:
   nameserver:
     - "https://1.1.1.1/dns-query#PROXY"
 
+# Lines between "BEGIN per-server" and "END per-server" are repeated once per
+# server by scripts/subscriptions.py. When filling the file by hand, list each
+# server yourself.
 proxies:
-  - name: VPS Reality
+  # BEGIN per-server
+  - name: "__SERVER_NAME__"
     type: vless
     server: __ENDPOINT_IPV4__
     port: 443
@@ -37,12 +41,16 @@ proxies:
     reality-opts:
       public-key: __REALITY_PUBLIC_KEY__
       short-id: "__REALITY_SHORT_ID__"
+  # END per-server
 
+# Pick the server by hand in the PROXY group.
 proxy-groups:
   - name: PROXY
     type: select
     proxies:
-      - VPS Reality
+      # BEGIN per-server
+      - "__SERVER_NAME__"
+      # END per-server
 
 rule-providers:
   cn-domain:
@@ -70,8 +78,10 @@ rules:
   # replaced by refreshing. Delete this rule if you do not use subscriptions.
   - DOMAIN,__SUBSCRIPTION_HOST__,DIRECT
 
-  # Keep administration and diagnostics to the VPS outside TUN.
+  # Keep administration and diagnostics to each VPS outside TUN.
+  # BEGIN per-server
   - IP-CIDR,__ENDPOINT_IPV4__/32,DIRECT,no-resolve
+  # END per-server
 
   # Keep this STUN hostname off the China-direct rule to avoid exposing the
   # client's ISP address. This is not a general WebRTC leak-prevention policy.

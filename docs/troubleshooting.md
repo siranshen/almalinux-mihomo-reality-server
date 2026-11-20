@@ -43,7 +43,7 @@ curl -4 https://api.ipify.org; echo
 
 Also check the provider-side firewall. Test from another network rather than
 from the VPS itself. Confirm the client's `server` address matches the VPS
-public IPv4. With subscriptions, check `server.address` in
+public IPv4. With subscriptions, check that server's `address` in
 `secrets/subscriptions.toml` and refresh the client.
 
 Only TCP 443 is required. Opening UDP 443 does not fix a TCP listener.
@@ -153,7 +153,7 @@ curl -sI https://sub.example.com/<token>-clash | head -1
   Verge Rev, confirm the profile still contains the
   `DOMAIN,<subscription host>,DIRECT` rule, so refreshes do not depend on a
   broken proxy.
-- `404`: the file is missing. Run `upload` again and confirm the person is
+- `404`: the file is missing. Run `deploy` again and confirm the person is
   still listed in `secrets/subscriptions.toml`. Wait about a minute after an
   upload.
 - Timeout or connection error: the subdomain is unreachable from that
@@ -169,6 +169,23 @@ with a script, set a normal `User-Agent` header.
 Upload errors mentioning authentication mean the `CLOUDFLARE_API_TOKEN`
 environment variable is missing, mistyped, or lacks the **Workers KV Storage ·
 Edit** permission.
+
+## deploy cannot update a server
+
+- `Host key verification failed` or a password prompt: log in once with
+  `ssh root@<address>` from the same computer, confirm the fingerprint, and
+  make sure your SSH key is in the server's `/root/.ssh/authorized_keys`.
+- `marker comments ... are missing`: add the two marker comments around the
+  server's users list; see
+  [Prepare each server](subscriptions.md#prepare-each-server-once).
+- `failed validation; nothing was changed`: the server rejected the new
+  configuration; the message shows Mihomo's error. The running service was not
+  touched.
+- `did not start ... previous config was restored`: check
+  `journalctl -u mihomo-server -n 50` on that server.
+
+If one server is unreachable, `deploy` uploads nothing. Fix it, remove its
+`[[servers]]` block, or run `upload` to publish anyway.
 
 ## Client direct/proxy routing looks wrong
 

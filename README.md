@@ -282,9 +282,10 @@ If SELinux reports a denial, diagnose it rather than disabling SELinux; see
 configuration, in addition to the proxy setup below.
 
 The recommended way is per-person subscriptions: one private file on your
-computer, one command to publish, and every client refreshes from its own
-URL. Each person gets their own UUID and can be removed individually. See
-[Client subscriptions](docs/subscriptions.md).
+computer listing your servers and people, and one command that updates every
+server's users and publishes the client settings. Every client refreshes from
+its own URL. Each person gets one UUID for all servers and can be removed
+individually. See [Client subscriptions](docs/subscriptions.md).
 
 To configure a single client by hand instead, copy
 `examples/mihomo-client.yaml.example` outside Git, replace its placeholders

@@ -4,14 +4,24 @@
 # `chmod 600`, and replace every __PLACEHOLDER__. The completed file holds
 # every person's credential and subscription URL; protect it like a password.
 
-[server]
+# One block per VPS. Each server has its own REALITY keypair and short ID.
+# Every person below can use every server.
+[[servers]]
+# Shown to people when they pick a server. Letters, digits, '-' or '_'.
+name = "vps1"
 # Current public IPv4 of the VPS. Change this when the VPS address changes.
 address = "__VPS_PUBLIC_IPV4__"
+# How `deploy` reaches the VPS. Uses your normal SSH keys and settings.
+ssh = "root@__VPS_PUBLIC_IPV4__"
 # Same values as reality-config in /etc/mihomo-server/config.yaml.
 # Only the PUBLIC key belongs here; the private key stays on the VPS.
 reality_server_name = "__REALITY_SERVER_NAME__"
 reality_public_key = "__REALITY_PUBLIC_KEY__"
 reality_short_id = "__REALITY_SHORT_ID__"
+
+# [[servers]]
+# name = "vps2"
+# ...
 
 [subscription]
 # Hostname attached to the Cloudflare Worker, for example sub.example.com.
@@ -35,7 +45,8 @@ kv_namespace_id = "__KV_NAMESPACE_ID__"
 
 # One block per person. Generate a block with fresh values with:
 #   python3 scripts/subscriptions.py new-person NAME
-# `name` is also the username on the server and must be unique.
+# `name` is also the username on the servers and must be unique. The UUID
+# works on every server.
 [[people]]
 name = "personal"
 uuid = "__VLESS_UUID__"
