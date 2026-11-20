@@ -300,10 +300,6 @@ For Shadowrocket, use `examples/shadowrocket-links.txt.example`. Completed
 client profiles and links contain the VLESS bearer credential and must be
 protected like passwords.
 
-**Required:** include `DOMAIN,pi.starlovin.tech,DIRECT` before rule sets and the
-final proxy rule in every client config. Use Rule mode (Clash Verge Rev) or
-Configuration mode (Shadowrocket); node URLs/QR codes do not include routing rules.
-
 See [Client setup](docs/client-setup.md).
 
 ## 10. Test externally

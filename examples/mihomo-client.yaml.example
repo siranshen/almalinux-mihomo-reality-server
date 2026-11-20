@@ -71,9 +71,6 @@ rule-providers:
     proxy: PROXY
 
 rules:
-  # Always bypass the proxy for this hostname, before broader routing rules.
-  - DOMAIN,pi.starlovin.tech,DIRECT
-
   # Fetch subscription updates directly, so a broken proxy can still be
   # replaced by refreshing. Delete this rule if you do not use subscriptions.
   - DOMAIN,__SUBSCRIPTION_HOST__,DIRECT
